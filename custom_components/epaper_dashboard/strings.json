@@ -1,0 +1,41 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "e-Paper Display hinzufuegen",
+        "description": "Ein e-Paper-Geraet einrichten. Das Template-JSON im e-Paper-Dashboard-Editor ueber den Button \"Template-JSON kopieren\" kopieren und hier einfuegen.",
+        "data": {
+          "device_name": "Geraete-Name (z.B. 42)",
+          "topic_prefix": "MQTT-Topic-Praefix (z.B. epaper/42)",
+          "template_json": "Template-JSON",
+          "update_interval": "Sende-Intervall (Sekunden)",
+          "retain": "Retained senden (fuer Deep-Sleep/PIR/Taster-Firmware noetig)"
+        }
+      }
+    },
+    "error": {
+      "invalid_json": "Ungueltiges Template-JSON (muss ein Objekt mit einem \"Elements\"-Feld sein)."
+    },
+    "abort": {
+      "already_configured": "Ein Geraet mit diesem Topic-Praefix ist bereits eingerichtet."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "e-Paper Display bearbeiten",
+        "description": "Aktualisiertes Template-JSON einfuegen (z.B. nach Layout-Aenderungen im Editor) oder Einstellungen anpassen.",
+        "data": {
+          "device_name": "Geraete-Name",
+          "topic_prefix": "MQTT-Topic-Praefix",
+          "template_json": "Template-JSON",
+          "update_interval": "Sende-Intervall (Sekunden)",
+          "retain": "Retained senden"
+        }
+      }
+    },
+    "error": {
+      "invalid_json": "Ungueltiges Template-JSON (muss ein Objekt mit einem \"Elements\"-Feld sein)."
+    }
+  }
+}
