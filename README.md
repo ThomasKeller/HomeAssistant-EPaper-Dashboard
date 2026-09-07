@@ -95,6 +95,14 @@ aus der C#-App -- inklusive:
   C#-App)
 - "Sende-Zeitpunkt"-Bindings (.NET-Datumsformat wie `HH:mm` wird nach
   `strftime` uebersetzt, siehe `dotnet_format_to_strftime()`)
+- **Nachkommastellen** (`Binding.Decimals`, im Editor bei der jeweiligen
+  Bindung einstellbar): rundet den HA-Rohwert (z.B. `1147.4765`) VOR dem
+  Einsetzen in `Format` auf N Nachkommastellen (`0` = ganze Zahl, leer =
+  unveraendert). Bewusst kein eingebetteter Format-Code wie `{0:0.00}`
+  direkt im `Format`-Feld -- der wuerde bei String-Werten in C# wirkungslos
+  bleiben und in Python eine andere, inkompatible Mini-Sprache verwenden.
+  `_apply_decimals()` in `render.py` ist das gepruefte Aequivalent zu
+  `ApplyDecimals()` in `PayloadBuilder.cs`.
 
 **Wird die Render-Logik in der C#-App geaendert** (neue Font, neue
 Binding-Quelle, geaendertes Protokoll-Feld), **muss `render.py` manuell

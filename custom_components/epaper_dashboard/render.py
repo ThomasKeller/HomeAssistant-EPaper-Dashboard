@@ -147,7 +147,27 @@ def _assign_to_target(el: dict, target_field: str, raw: str, formatted: str) -> 
         el["Text"] = formatted
 
 
+def _apply_decimals(raw: str, decimals: int | None) -> str:
+    """Rundet raw auf `decimals` Nachkommastellen, falls es sich als Zahl
+    parsen laesst (sonst unveraendert -- z.B. Text-Werte wie Wetter-
+    "condition"). None = keine Rundung. 1:1-Aequivalent zu
+    PayloadBuilder.cs ApplyDecimals() -- sprachneutraler, expliziter Weg
+    statt eingebetteter Format-Codes wie "{0:0.00}" (die bei einem
+    String-Argument in C# wirkungslos wären und in Python eine andere
+    Mini-Sprache haetten)."""
+    if decimals is None:
+        return raw
+    try:
+        value = float(raw)
+    except (TypeError, ValueError):
+        return raw
+    n = max(0, min(10, int(decimals)))
+    return f"{round(value, n):.{n}f}"
+
+
 def _assign_formatted(el: dict, binding: dict, raw: str) -> None:
+    raw = _apply_decimals(raw, binding.get("Decimals"))
+
     fmt = binding.get("Format") or "{0}"
     try:
         formatted = fmt.format(raw)
