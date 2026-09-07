@@ -29,8 +29,19 @@ Multi-Geraet-Integrationen, jedes Geraet erscheint als eigene Geraetekarte.
 2. In Home Assistant beim Hinzufuegen der Integration einfuegen:
    - **Geraete-Name**: z.B. `42`
    - **MQTT-Topic-Praefix**: z.B. `epaper/42` (ohne `/state`/`/config` am Ende)
+   - **MQTT-Verbindung**: Auswahl zwischen
+     - *Eigener Broker*: Host/Port/Benutzername/Passwort direkt hier
+       eintragen (dieselben Werte wie in
+       `epaper_dashboard/EpaperDashboard/appsettings.json` bei der C#-App).
+       Verbindet sich selbst (`paho-mqtt`), unabhaengig davon ob Home
+       Assistant selbst MQTT eingerichtet hat.
+     - *Home Assistants eigene MQTT-Integration verwenden*: nutzt die in
+       HA unter Einstellungen -> Geraete & Dienste -> MQTT bereits
+       hinterlegte Verbindung -- keine doppelte Pflege von Zugangsdaten,
+       setzt aber voraus, dass diese Integration dort eingerichtet ist.
    - **Template-JSON**: die kopierte JSON aus Schritt 1
-   - **Sende-Intervall**: wie oft neu gerendert + gesendet wird (Sekunden)
+   - **Sende-Intervall**: wie oft neu gerendert + an den Broker gesendet
+     wird, in Sekunden (Minimum 10)
    - **Retained senden**: fuer die Deep-Sleep/PIR/Taster-Firmware **an
      lassen** (Geraet schlaeft die meiste Zeit, siehe
      [esp8266_epaper/README.md](../esp8266_epaper/README.md) Abschnitt
@@ -62,6 +73,14 @@ Sendezyklus startet sofort mit dem neuen Layout, kein Neustart noetig.
   letzten Sendeversuchs (Attribute `erfolgreich`/`meldung`).
 
 ## Architektur / Wartungshinweis
+
+`mqtt_client.py` ist ein eigenstaendiger MQTT-Client (`paho-mqtt`,
+kurzlebige Verbindung pro Publish -- verbinden, senden, trennen, analog zu
+`MqttPublisher.cs`). Bewusst **keine** Abhaengigkeit von Home Assistants
+eigener MQTT-Integration (`manifest.json` hat kein
+`"dependencies": ["mqtt"]` mehr): haengt die Integration daran und ist die
+in eurer HA-Instanz nicht eingerichtet, scheitert das Laden komplett --
+inklusive aller anderen Einstellungen, die dann nie erreichbar sind.
 
 `render.py` ist ein **manueller Python-Port** von
 `PayloadBuilder.cs`/`GfxTextLayout.cs`/`GfxFonts.cs`/`WeatherConditions.cs`

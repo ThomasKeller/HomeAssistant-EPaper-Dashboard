@@ -12,13 +12,13 @@ import json
 import logging
 from datetime import timedelta
 
-from homeassistant.components import mqtt
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.util import dt as dt_util
 
+from . import mqtt_client
 from .const import (
     CONF_RETAIN,
     CONF_TEMPLATE_JSON,
@@ -77,7 +77,7 @@ class EpaperRuntimeData:
         retain = bool(opts.get(CONF_RETAIN, DEFAULT_RETAIN))
 
         try:
-            await mqtt.async_publish(self.hass, topic, payload, qos=1, retain=retain)
+            await mqtt_client.async_publish_for_entry(self.hass, opts, topic, payload, retain)
         except Exception as err:  # noqa: BLE001
             self.last_success = False
             self.last_message = f"MQTT-Fehler: {err}"

@@ -14,16 +14,31 @@ from homeassistant.helpers import selector
 
 from .const import (
     CONF_DEVICE_NAME,
+    CONF_MQTT_HOST,
+    CONF_MQTT_PASSWORD,
+    CONF_MQTT_PORT,
+    CONF_MQTT_SOURCE,
+    CONF_MQTT_USERNAME,
     CONF_RETAIN,
     CONF_TEMPLATE_JSON,
     CONF_TOPIC_PREFIX,
     CONF_UPDATE_INTERVAL,
+    DEFAULT_MQTT_PORT,
+    DEFAULT_MQTT_SOURCE,
     DEFAULT_RETAIN,
     DEFAULT_UPDATE_INTERVAL,
+    MQTT_SOURCE_CUSTOM,
+    MQTT_SOURCE_HA,
     DOMAIN,
 )
 
 ERROR_INVALID_JSON = "invalid_json"
+ERROR_MISSING_MQTT_HOST = "missing_mqtt_host"
+
+_MQTT_SOURCE_OPTIONS = [
+    selector.SelectOptionDict(value=MQTT_SOURCE_CUSTOM, label="Eigener Broker (Adresse unten eintragen)"),
+    selector.SelectOptionDict(value=MQTT_SOURCE_HA, label="Home Assistants eigene MQTT-Integration verwenden"),
+]
 
 
 def _validate_template_json(value: str) -> None:
@@ -35,6 +50,22 @@ def _validate_template_json(value: str) -> None:
         raise vol.Invalid(ERROR_INVALID_JSON)
 
 
+def _validate(user_input: dict[str, Any]) -> dict[str, str]:
+    """Liefert ein errors-Dict (leer = alles ok). mqtt_host ist nur bei
+    Source "custom" Pflicht -- bei "ha" wird Home Assistants eigene
+    MQTT-Verbindung genutzt, da braucht es keine eigene Broker-Adresse."""
+    errors: dict[str, str] = {}
+    try:
+        _validate_template_json(user_input[CONF_TEMPLATE_JSON])
+    except vol.Invalid:
+        errors["base"] = ERROR_INVALID_JSON
+
+    if user_input.get(CONF_MQTT_SOURCE) == MQTT_SOURCE_CUSTOM and not user_input.get(CONF_MQTT_HOST):
+        errors[CONF_MQTT_HOST] = ERROR_MISSING_MQTT_HOST
+
+    return errors
+
+
 def _schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
     defaults = defaults or {}
     return vol.Schema(
@@ -43,6 +74,23 @@ def _schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
             vol.Required(
                 CONF_TOPIC_PREFIX, default=defaults.get(CONF_TOPIC_PREFIX, "epaper/42")
             ): str,
+            vol.Required(
+                CONF_MQTT_SOURCE, default=defaults.get(CONF_MQTT_SOURCE, DEFAULT_MQTT_SOURCE)
+            ): selector.SelectSelector(
+                selector.SelectSelectorConfig(options=_MQTT_SOURCE_OPTIONS, mode=selector.SelectSelectorMode.DROPDOWN)
+            ),
+            vol.Optional(
+                CONF_MQTT_HOST, default=defaults.get(CONF_MQTT_HOST, "")
+            ): str,
+            vol.Required(
+                CONF_MQTT_PORT, default=defaults.get(CONF_MQTT_PORT, DEFAULT_MQTT_PORT)
+            ): vol.All(vol.Coerce(int), vol.Range(min=1, max=65535)),
+            vol.Optional(
+                CONF_MQTT_USERNAME, default=defaults.get(CONF_MQTT_USERNAME, "")
+            ): str,
+            vol.Optional(
+                CONF_MQTT_PASSWORD, default=defaults.get(CONF_MQTT_PASSWORD, "")
+            ): selector.TextSelector(selector.TextSelectorConfig(type=selector.TextSelectorType.PASSWORD)),
             vol.Required(
                 CONF_TEMPLATE_JSON, default=defaults.get(CONF_TEMPLATE_JSON, "")
             ): selector.TextSelector(selector.TextSelectorConfig(multiline=True)),
@@ -62,11 +110,8 @@ class EpaperDashboardConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         errors: dict[str, str] = {}
 
         if user_input is not None:
-            try:
-                _validate_template_json(user_input[CONF_TEMPLATE_JSON])
-            except vol.Invalid:
-                errors["base"] = ERROR_INVALID_JSON
-            else:
+            errors = _validate(user_input)
+            if not errors:
                 await self.async_set_unique_id(user_input[CONF_TOPIC_PREFIX])
                 self._abort_if_unique_id_configured()
                 return self.async_create_entry(
@@ -97,11 +142,8 @@ class EpaperDashboardOptionsFlow(config_entries.OptionsFlow):
         current = {**self._entry.data, **self._entry.options}
 
         if user_input is not None:
-            try:
-                _validate_template_json(user_input[CONF_TEMPLATE_JSON])
-            except vol.Invalid:
-                errors["base"] = ERROR_INVALID_JSON
-            else:
+            errors = _validate(user_input)
+            if not errors:
                 return self.async_create_entry(title="", data=user_input)
 
         return self.async_show_form(

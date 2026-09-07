@@ -9,13 +9,13 @@ Aufwachen.
 """
 from __future__ import annotations
 
-from homeassistant.components import mqtt
 from homeassistant.components.number import NumberEntity, NumberMode
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.restore_state import RestoreEntity
 
+from . import mqtt_client
 from .const import (
     CONF_TOPIC_PREFIX,
     DEFAULT_SLEEP_INTERVAL_S,
@@ -59,6 +59,9 @@ class EpaperSleepIntervalNumber(NumberEntity, RestoreEntity):
 
     async def async_set_native_value(self, value: float) -> None:
         self._attr_native_value = value
-        prefix = self._entry.data.get(CONF_TOPIC_PREFIX, "").rstrip("/")
-        await mqtt.async_publish(self._hass, f"{prefix}/config", str(int(value)), qos=1, retain=True)
+        opts = {**self._entry.data, **self._entry.options}
+        prefix = opts.get(CONF_TOPIC_PREFIX, "").rstrip("/")
+        await mqtt_client.async_publish_for_entry(
+            self._hass, opts, f"{prefix}/config", str(int(value)), True
+        )
         self.async_write_ha_state()

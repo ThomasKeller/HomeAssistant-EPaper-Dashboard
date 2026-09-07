@@ -7,14 +7,20 @@
         "data": {
           "device_name": "Geraete-Name (z.B. 42)",
           "topic_prefix": "MQTT-Topic-Praefix (z.B. epaper/42)",
+          "mqtt_source": "MQTT-Verbindung",
+          "mqtt_host": "MQTT-Broker-Host (nur bei \"Eigener Broker\")",
+          "mqtt_port": "MQTT-Broker-Port",
+          "mqtt_username": "MQTT-Benutzername (optional)",
+          "mqtt_password": "MQTT-Passwort (optional)",
           "template_json": "Template-JSON",
-          "update_interval": "Sende-Intervall (Sekunden)",
+          "update_interval": "Sende-Intervall (Sekunden) -- wie oft neu gerendert + an MQTT gesendet wird",
           "retain": "Retained senden (fuer Deep-Sleep/PIR/Taster-Firmware noetig)"
         }
       }
     },
     "error": {
-      "invalid_json": "Ungueltiges Template-JSON (muss ein Objekt mit einem \"Elements\"-Feld sein)."
+      "invalid_json": "Ungueltiges Template-JSON (muss ein Objekt mit einem \"Elements\"-Feld sein).",
+      "missing_mqtt_host": "MQTT-Broker-Host fehlt (bei \"Eigener Broker\" erforderlich)."
     },
     "abort": {
       "already_configured": "Ein Geraet mit diesem Topic-Praefix ist bereits eingerichtet."
@@ -28,14 +34,20 @@
         "data": {
           "device_name": "Geraete-Name",
           "topic_prefix": "MQTT-Topic-Praefix",
+          "mqtt_source": "MQTT-Verbindung",
+          "mqtt_host": "MQTT-Broker-Host (nur bei \"Eigener Broker\")",
+          "mqtt_port": "MQTT-Broker-Port",
+          "mqtt_username": "MQTT-Benutzername (optional)",
+          "mqtt_password": "MQTT-Passwort (optional)",
           "template_json": "Template-JSON",
-          "update_interval": "Sende-Intervall (Sekunden)",
+          "update_interval": "Sende-Intervall (Sekunden) -- wie oft neu gerendert + an MQTT gesendet wird",
           "retain": "Retained senden"
         }
       }
     },
     "error": {
-      "invalid_json": "Ungueltiges Template-JSON (muss ein Objekt mit einem \"Elements\"-Feld sein)."
+      "invalid_json": "Ungueltiges Template-JSON (muss ein Objekt mit einem \"Elements\"-Feld sein).",
+      "missing_mqtt_host": "MQTT-Broker-Host fehlt (bei \"Eigener Broker\" erforderlich)."
     }
   }
 }
