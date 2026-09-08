@@ -6,23 +6,24 @@ publiziert das Ergebnis retained per MQTT -- unabhaengig davon, ob die
 C#-App gerade laeuft. Eine Config-Entry = ein e-Paper-Geraet; fuer mehrere
 Geraete (42, 43, ...) einfach die Integration mehrfach hinzufuegen.
 
-Sende-Takt: tagsueber CONF_DAY_INTERVAL, nachts (zwischen CONF_NIGHT_START
-und CONF_DAY_START) CONF_NIGHT_INTERVAL -- steuert sowohl, wie oft neu
-gerendert wird, als auch (ueber das config-Topic) das Schlafintervall des
-Geraets selbst.
+Zwei getrennte Takte fuer zwei getrennte Anliegen:
 
-Bewusst ein einfacher, fester Intervall-Takt statt einer Status-Topic-
-basierten Aufwach-Vorhersage (fruehere Version): bei einem manuellen
-Sofort-Refresh am Geraet (z.B. Taster-Wake) soll die retained
-State-Nachricht relativ frisch sein, nicht bis zu einem vollen Intervall
-alt, weil sie nur kurz vor dem naechsten VORHERGESAGTEN regulaeren Wake
-aktualisiert wurde.
+- CONF_STATE_REFRESH_INTERVAL: wie oft das Plugin neu rendert + an das
+  state-Topic sendet. Typischerweise kurz (Default 30s), damit die
+  retained Nachricht bei JEDEM Aufwachen des Geraets frisch ist -- auch
+  bei einem spontanen Sofort-Refresh (z.B. Taster), nicht nur beim
+  naechsten regulaeren Schlafzyklus.
+- CONF_DAY_INTERVAL / CONF_NIGHT_INTERVAL (zwischen CONF_NIGHT_START und
+  CONF_DAY_START): das eigentliche Schlafintervall des Geraets, gesendet
+  ans config-Topic bei jedem State-Refresh-Zyklus. Viel laenger als
+  CONF_STATE_REFRESH_INTERVAL (Akkulaufzeit), voellig unabhaengig davon,
+  wie oft das state-Topic aktualisiert wird.
 """
 from __future__ import annotations
 
 import json
 import logging
-from datetime import time, timedelta
+from datetime import time
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
@@ -37,6 +38,7 @@ from .const import (
     CONF_NIGHT_INTERVAL,
     CONF_NIGHT_START,
     CONF_RETAIN,
+    CONF_STATE_REFRESH_INTERVAL,
     CONF_TEMPLATE_JSON,
     CONF_TOPIC_PREFIX,
     DEFAULT_DAY_INTERVAL,
@@ -44,6 +46,7 @@ from .const import (
     DEFAULT_NIGHT_INTERVAL,
     DEFAULT_NIGHT_START,
     DEFAULT_RETAIN,
+    DEFAULT_STATE_REFRESH_INTERVAL_S,
     DOMAIN,
 )
 from .render import render
@@ -94,6 +97,9 @@ class EpaperRuntimeData:
         return f"{self._prefix}/config"
 
     def _effective_interval_s(self) -> int:
+        """Schlafintervall des GERAETS (Tag/Nacht) -- wird nur an das
+        config-Topic gesendet, steuert NICHT den eigenen Sende-Takt (siehe
+        _state_refresh_interval_s())."""
         opts = self._options
         now = dt_util.now().time()
         night_start = _parse_time(opts.get(CONF_NIGHT_START, DEFAULT_NIGHT_START), DEFAULT_NIGHT_START)
@@ -101,6 +107,12 @@ class EpaperRuntimeData:
         if _is_night(now, night_start, day_start):
             return max(10, int(opts.get(CONF_NIGHT_INTERVAL, DEFAULT_NIGHT_INTERVAL)))
         return max(10, int(opts.get(CONF_DAY_INTERVAL, DEFAULT_DAY_INTERVAL)))
+
+    def _state_refresh_interval_s(self) -> int:
+        """Wie oft das PLUGIN neu rendert + ans state-Topic sendet --
+        unabhaengig vom (meist viel laengeren) Geraete-Schlafintervall, damit
+        der Inhalt bei jedem Aufwachen (regulaer oder spontan) frisch ist."""
+        return max(5, int(self._options.get(CONF_STATE_REFRESH_INTERVAL, DEFAULT_STATE_REFRESH_INTERVAL_S)))
 
     async def publish_now(self, *_) -> None:
         opts = self._options
@@ -159,12 +171,11 @@ class EpaperRuntimeData:
     def _schedule_next(self) -> None:
         if self._unsub_timer is not None:
             self._unsub_timer()
-        # Fester Intervall-Takt ab jetzt (tagsueber/nachts je nach Uhrzeit
-        # neu bestimmt) -- kein Bezug zum tatsaechlichen Aufwachzeitpunkt
-        # des Geraets, damit die retained State-Nachricht bei einem
-        # spontanen Sofort-Refresh (z.B. Taster) nie aelter als ein
-        # Intervall ist.
-        delay = float(self._effective_interval_s())
+        # Fester, kurzer Takt (CONF_STATE_REFRESH_INTERVAL) -- unabhaengig
+        # vom (viel laengeren) Geraete-Schlafintervall, damit die retained
+        # State-Nachricht bei JEDEM Aufwachen (regulaer oder spontan per
+        # Taster) hoechstens diesen Wert alt ist.
+        delay = float(self._state_refresh_interval_s())
         self._unsub_timer = async_call_later(self.hass, delay, self._fire_scheduled)
 
     async def _fire_scheduled(self, _now) -> None:

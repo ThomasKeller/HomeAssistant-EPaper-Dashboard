@@ -8,10 +8,11 @@
           "device_name": "Geraete-Name (z.B. 42)",
           "topic_prefix": "MQTT-Topic-Praefix (z.B. epaper/42)",
           "template_json": "Template-JSON",
-          "day_interval": "Tages-Intervall (Sekunden) -- wie oft tagsueber neu gerendert + gesendet wird",
-          "night_interval": "Nacht-Intervall (Sekunden) -- wie oft nachts neu gerendert + gesendet wird",
+          "state_refresh_interval_s": "State-Aktualisierung (Sekunden) -- wie oft neu gerendert + ans state-Topic gesendet wird, unabhaengig vom Schlafintervall des Geraets",
+          "day_interval": "Schlafintervall tagsueber (Sekunden) -- wie lange das Geraet zwischen Aufwachen schlaeft",
+          "night_interval": "Schlafintervall nachts (Sekunden)",
           "night_start": "Nacht-Beginn (Uhrzeit)",
-          "day_start": "Tag-Beginn (Uhrzeit) -- ab hier gilt wieder das Tages-Intervall",
+          "day_start": "Tag-Beginn (Uhrzeit) -- ab hier gilt wieder das Tages-Schlafintervall",
           "retain": "Retained senden (fuer Deep-Sleep/PIR/Taster-Firmware noetig)"
         }
       }
@@ -32,10 +33,11 @@
           "device_name": "Geraete-Name",
           "topic_prefix": "MQTT-Topic-Praefix",
           "template_json": "Template-JSON",
-          "day_interval": "Tages-Intervall (Sekunden) -- wie oft tagsueber neu gerendert + gesendet wird",
-          "night_interval": "Nacht-Intervall (Sekunden) -- wie oft nachts neu gerendert + gesendet wird",
+          "state_refresh_interval_s": "State-Aktualisierung (Sekunden) -- wie oft neu gerendert + ans state-Topic gesendet wird, unabhaengig vom Schlafintervall des Geraets",
+          "day_interval": "Schlafintervall tagsueber (Sekunden) -- wie lange das Geraet zwischen Aufwachen schlaeft",
+          "night_interval": "Schlafintervall nachts (Sekunden)",
           "night_start": "Nacht-Beginn (Uhrzeit)",
-          "day_start": "Tag-Beginn (Uhrzeit) -- ab hier gilt wieder das Tages-Intervall",
+          "day_start": "Tag-Beginn (Uhrzeit) -- ab hier gilt wieder das Tages-Schlafintervall",
           "retain": "Retained senden"
         }
       }

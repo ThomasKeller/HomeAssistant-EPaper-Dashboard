@@ -31,12 +31,14 @@ Multi-Geraet-Integrationen, jedes Geraet erscheint als eigene Geraetekarte.
    - **MQTT-Topic-Praefix**: z.B. `epaper/42` (ohne `/state`/`/config`/`/status`
      am Ende)
    - **Template-JSON**: die kopierte JSON aus Schritt 1
-   - **Tages-Intervall**: wie oft tagsueber neu gerendert + gesendet wird,
-     in Sekunden (Minimum 10)
-   - **Nacht-Intervall**: wie oft nachts neu gerendert + gesendet wird
+   - **State-Aktualisierung**: wie oft neu gerendert + ans `state`-Topic
+     gesendet wird, in Sekunden (Minimum 5, Default 30) -- unabhaengig vom
+     Schlafintervall des Geraets, siehe Abschnitt unten
+   - **Schlafintervall tagsueber / nachts**: wie lange das Geraet
+     zwischen zwei Aufwach-Zyklen schlaeft, in Sekunden (Minimum 10)
    - **Nacht-Beginn** / **Tag-Beginn**: Uhrzeiten, ab wann das jeweilige
-     Intervall gilt (Nacht-Beginn darf ueber Mitternacht hinausgehen, z.B.
-     22:00 - 06:00)
+     Schlafintervall gilt (Nacht-Beginn darf ueber Mitternacht
+     hinausgehen, z.B. 22:00 - 06:00)
    - **Retained senden**: fuer die Deep-Sleep/PIR/Taster-Firmware **an
      lassen** (Geraet schlaeft die meiste Zeit, siehe
      [esp8266_epaper/README.md](../esp8266_epaper/README.md) Abschnitt
@@ -58,24 +60,29 @@ Nach Layout-Aenderungen im Editor: Integration -> **Konfigurieren** ->
 neues "Template-JSON kopieren"-Ergebnis einfuegen -> Absenden. Der naechste
 Sendezyklus startet sofort mit dem neuen Layout, kein Neustart noetig.
 
-## Tag/Nacht-Intervall
+## Zwei getrennte Takte: State-Aktualisierung vs. Geraete-Schlafintervall
 
-Zwischen Nacht-Beginn und Tag-Beginn gilt das Nacht-Intervall, sonst das
-Tages-Intervall -- sowohl fuers eigene Rendern+Senden als auch
-(automatisch, per `config`-Topic-Push bei jedem Zyklus) fuers
-Schlafintervall des Geraets selbst. Ohne diese Kopplung wuerde das Geraet
-nachts weiterhin im Tages-Takt aufwachen und nur oefter denselben Inhalt
-abholen, ohne echten Akku-Vorteil.
+Zwei unabhaengige Anliegen, zwei unabhaengige Einstellungen:
 
-Bewusst ein **fester** Intervall-Takt (kein Bezug zum tatsaechlichen
-Aufwachzeitpunkt des Geraets, siehe Architektur-Historie in
-`__init__.py`): eine fruehere Version versuchte, den Sendezeitpunkt anhand
-des Status-Topics auf kurz vor das vorhergesagte naechste Aufwachen zu
-legen. Das fuehrte dazu, dass ein spontaner Sofort-Refresh am Geraet (z.B.
-Taster-Wake) einen bis zu ein Intervall alten Inhalt abholte, weil die
-retained State-Nachricht nur einmal pro regulaerem Zyklus aktualisiert
-wurde. Mit festem Takt ist der Inhalt hoechstens ein Intervall alt, auch
-bei spontanen Wakes.
+1. **State-Aktualisierung** (`state_refresh_interval_s`, Default 30s):
+   wie oft das Plugin neu rendert und ans `state`-Topic sendet. Bewusst
+   **viel kuerzer** als das Schlafintervall des Geraets, damit die
+   retained Nachricht bei JEDEM Aufwachen frisch ist -- auch bei einem
+   spontanen Sofort-Refresh (z.B. Taster-Wake), nicht nur beim naechsten
+   regulaeren Schlafzyklus. Mit 30s ist der Inhalt hoechstens 30 Sekunden
+   alt, egal wann das Geraet tatsaechlich aufwacht.
+2. **Schlafintervall des Geraets** (Tag/Nacht, `day_interval` /
+   `night_interval` zwischen `night_start` und `day_start`): wie lange das
+   Geraet zwischen zwei Aufwach-Zyklen schlaeft (Akkulaufzeit). Wird bei
+   jedem State-Refresh-Zyklus automatisch ans `config`-Topic gesendet.
+   Ohne die Tag/Nacht-Unterscheidung wuerde das Geraet nachts weiterhin im
+   Tages-Takt aufwachen, ohne echten Akku-Vorteil.
+
+Diese beiden Takte sind bewusst entkoppelt: haette das Plugin nur EINEN
+gemeinsamen Takt (fruehere Version), muesste er entweder kurz genug fuers
+Geraet sein (schlecht fuer die Akkulaufzeit) oder lang genug fuers
+Schlafintervall (dann kann ein spontaner Sofort-Refresh veraltete Werte
+abholen).
 
 Die "Schlafintervall"-Number-Entity (s.u.) bleibt als manueller Override
 nutzbar, wird aber vom naechsten automatischen Zyklus wieder auf den

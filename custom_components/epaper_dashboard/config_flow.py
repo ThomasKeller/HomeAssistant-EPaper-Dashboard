@@ -19,6 +19,7 @@ from .const import (
     CONF_NIGHT_INTERVAL,
     CONF_NIGHT_START,
     CONF_RETAIN,
+    CONF_STATE_REFRESH_INTERVAL,
     CONF_TEMPLATE_JSON,
     CONF_TOPIC_PREFIX,
     DEFAULT_DAY_INTERVAL,
@@ -26,6 +27,7 @@ from .const import (
     DEFAULT_NIGHT_INTERVAL,
     DEFAULT_NIGHT_START,
     DEFAULT_RETAIN,
+    DEFAULT_STATE_REFRESH_INTERVAL_S,
     DOMAIN,
 )
 
@@ -62,6 +64,10 @@ def _schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
             vol.Required(
                 CONF_TEMPLATE_JSON, default=defaults.get(CONF_TEMPLATE_JSON, "")
             ): selector.TextSelector(selector.TextSelectorConfig(multiline=True)),
+            vol.Required(
+                CONF_STATE_REFRESH_INTERVAL,
+                default=defaults.get(CONF_STATE_REFRESH_INTERVAL, DEFAULT_STATE_REFRESH_INTERVAL_S),
+            ): vol.All(vol.Coerce(int), vol.Range(min=5)),
             vol.Required(
                 CONF_DAY_INTERVAL,
                 default=defaults.get(CONF_DAY_INTERVAL, DEFAULT_DAY_INTERVAL),
