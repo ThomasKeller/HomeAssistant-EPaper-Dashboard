@@ -185,7 +185,18 @@ class EpaperRuntimeData:
         predicted_wake = self.last_device_status_at + timedelta(seconds=interval)
         target = predicted_wake - timedelta(seconds=self._wake_lead_s())
         delay = (target - dt_util.utcnow()).total_seconds()
-        return max(0.0, delay)
+        if delay > 0:
+            return delay
+
+        # Vorhersage bereits verpasst (Geraet ist nicht wie erwartet
+        # aufgewacht, z.B. weil es noch mit einem aelteren Intervall
+        # schlaeft) -- NICHT sofort erneut feuern, das waere ein
+        # Busy-Loop (bei jedem Aufruf wieder ein verstrichener, negativer
+        # Zeitpunkt -> immer wieder delay=0). Stattdessen auf den
+        # normalen Intervall-Takt ab jetzt zurueckfallen; eine
+        # tatsaechliche neue Status-Nachricht ueberschreibt das ohnehin
+        # sofort ueber _on_status_message().
+        return float(interval)
 
     def _schedule_next(self) -> None:
         if self._unsub_timer is not None:
