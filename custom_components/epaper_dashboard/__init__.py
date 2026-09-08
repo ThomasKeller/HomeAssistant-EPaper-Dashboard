@@ -9,20 +9,23 @@ Geraete (42, 43, ...) einfach die Integration mehrfach hinzufuegen.
 Sende-Takt: tagsueber CONF_DAY_INTERVAL, nachts (zwischen CONF_NIGHT_START
 und CONF_DAY_START) CONF_NIGHT_INTERVAL -- steuert sowohl, wie oft neu
 gerendert wird, als auch (ueber das config-Topic) das Schlafintervall des
-Geraets selbst. Statt eines starren Intervall-Timers wird der Status-Topic
-des Geraets abonniert: der Sende-Zeitpunkt wird auf CONF_WAKE_LEAD Sekunden
-vor dem aus dem letzten Aufwachzeitpunkt + aktuellem Intervall vorhergesagten
-naechsten Aufwachen gelegt, damit eine moeglichst frische retained Nachricht
-bereitliegt, wenn das Geraet tatsaechlich aufwacht.
+Geraets selbst.
+
+Bewusst ein einfacher, fester Intervall-Takt statt einer Status-Topic-
+basierten Aufwach-Vorhersage (fruehere Version): bei einem manuellen
+Sofort-Refresh am Geraet (z.B. Taster-Wake) soll die retained
+State-Nachricht relativ frisch sein, nicht bis zu einem vollen Intervall
+alt, weil sie nur kurz vor dem naechsten VORHERGESAGTEN regulaeren Wake
+aktualisiert wurde.
 """
 from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, time, timedelta
+from datetime import time, timedelta
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant, callback
+from homeassistant.core import HomeAssistant
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.event import async_call_later
 from homeassistant.util import dt as dt_util
@@ -36,13 +39,11 @@ from .const import (
     CONF_RETAIN,
     CONF_TEMPLATE_JSON,
     CONF_TOPIC_PREFIX,
-    CONF_WAKE_LEAD,
     DEFAULT_DAY_INTERVAL,
     DEFAULT_DAY_START,
     DEFAULT_NIGHT_INTERVAL,
     DEFAULT_NIGHT_START,
     DEFAULT_RETAIN,
-    DEFAULT_WAKE_LEAD_S,
     DOMAIN,
 )
 from .render import render
@@ -76,9 +77,7 @@ class EpaperRuntimeData:
         self.last_success: bool | None = None
         self.last_message: str = "Noch nicht ausgefuehrt"
         self.last_updated = None
-        self.last_device_status_at: datetime | None = None
         self._unsub_timer = None
-        self._unsub_status = None
 
     @property
     def _options(self) -> dict:
@@ -89,10 +88,6 @@ class EpaperRuntimeData:
     @property
     def _prefix(self) -> str:
         return self._options.get(CONF_TOPIC_PREFIX, "").rstrip("/")
-
-    @property
-    def _status_topic(self) -> str:
-        return f"{self._prefix}/status"
 
     @property
     def _config_topic(self) -> str:
@@ -106,9 +101,6 @@ class EpaperRuntimeData:
         if _is_night(now, night_start, day_start):
             return max(10, int(opts.get(CONF_NIGHT_INTERVAL, DEFAULT_NIGHT_INTERVAL)))
         return max(10, int(opts.get(CONF_DAY_INTERVAL, DEFAULT_DAY_INTERVAL)))
-
-    def _wake_lead_s(self) -> int:
-        return max(1, int(self._options.get(CONF_WAKE_LEAD, DEFAULT_WAKE_LEAD_S)))
 
     async def publish_now(self, *_) -> None:
         opts = self._options
@@ -164,44 +156,15 @@ class EpaperRuntimeData:
         _LOGGER.debug("e-Paper-Payload gesendet (%s): %s", self.entry.title, self.last_message)
         async_dispatcher_send(self.hass, f"{DOMAIN}_{self.entry.entry_id}_updated")
 
-    @callback
-    def _on_status_message(self, msg) -> None:
-        """Neue Status-Nachricht vom Geraet (Wake-Signal) -> Zeitpunkt
-        merken und Zeitplan mit der jetzt genaueren Vorhersage neu
-        berechnen."""
-        self.last_device_status_at = dt_util.utcnow()
-        self._schedule_next()
-
-    def _predict_delay_s(self) -> float:
-        """Sekunden bis zum naechsten Sende-Zeitpunkt: CONF_WAKE_LEAD vor dem
-        vorhergesagten naechsten Aufwachen (letzter Status-Zeitpunkt +
-        aktuelles Intervall), falls bereits ein Status gesehen wurde --
-        sonst der normale Intervall-Takt ab jetzt (z.B. direkt nach einem
-        HA-Neustart, bevor das Geraet zum ersten Mal aufgewacht ist)."""
-        interval = self._effective_interval_s()
-        if self.last_device_status_at is None:
-            return float(interval)
-
-        predicted_wake = self.last_device_status_at + timedelta(seconds=interval)
-        target = predicted_wake - timedelta(seconds=self._wake_lead_s())
-        delay = (target - dt_util.utcnow()).total_seconds()
-        if delay > 0:
-            return delay
-
-        # Vorhersage bereits verpasst (Geraet ist nicht wie erwartet
-        # aufgewacht, z.B. weil es noch mit einem aelteren Intervall
-        # schlaeft) -- NICHT sofort erneut feuern, das waere ein
-        # Busy-Loop (bei jedem Aufruf wieder ein verstrichener, negativer
-        # Zeitpunkt -> immer wieder delay=0). Stattdessen auf den
-        # normalen Intervall-Takt ab jetzt zurueckfallen; eine
-        # tatsaechliche neue Status-Nachricht ueberschreibt das ohnehin
-        # sofort ueber _on_status_message().
-        return float(interval)
-
     def _schedule_next(self) -> None:
         if self._unsub_timer is not None:
             self._unsub_timer()
-        delay = self._predict_delay_s()
+        # Fester Intervall-Takt ab jetzt (tagsueber/nachts je nach Uhrzeit
+        # neu bestimmt) -- kein Bezug zum tatsaechlichen Aufwachzeitpunkt
+        # des Geraets, damit die retained State-Nachricht bei einem
+        # spontanen Sofort-Refresh (z.B. Taster) nie aelter als ein
+        # Intervall ist.
+        delay = float(self._effective_interval_s())
         self._unsub_timer = async_call_later(self.hass, delay, self._fire_scheduled)
 
     async def _fire_scheduled(self, _now) -> None:
@@ -209,19 +172,13 @@ class EpaperRuntimeData:
         await self.publish_now()
         self._schedule_next()
 
-    async def async_start(self) -> None:
-        self._unsub_status = await ha_mqtt.async_subscribe(
-            self.hass, self._status_topic, self._on_status_message
-        )
+    def async_start(self) -> None:
         self._schedule_next()
 
     def async_stop(self) -> None:
         if self._unsub_timer is not None:
             self._unsub_timer()
             self._unsub_timer = None
-        if self._unsub_status is not None:
-            self._unsub_status()
-            self._unsub_status = None
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -231,12 +188,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
-    await runtime.async_start()
+    runtime.async_start()
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
 
-    # Einmal gleich beim Start senden, nicht erst auf den ersten Status vom
-    # Geraet oder das erste Intervall warten (nicht blockierend fuer den
-    # HA-Start).
+    # Einmal gleich beim Start senden, nicht erst das erste Intervall
+    # abwarten (nicht blockierend fuer den HA-Start).
     hass.async_create_task(runtime.publish_now())
 
     return True
@@ -248,7 +204,7 @@ async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> Non
     einmal senden, damit die Aenderung nicht erst spaeter wirkt."""
     runtime: EpaperRuntimeData = hass.data[DOMAIN][entry.entry_id]
     runtime.async_stop()
-    await runtime.async_start()
+    runtime.async_start()
     hass.async_create_task(runtime.publish_now())
 
 

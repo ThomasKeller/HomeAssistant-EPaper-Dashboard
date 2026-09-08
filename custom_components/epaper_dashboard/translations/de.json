@@ -12,7 +12,6 @@
           "night_interval": "Nacht-Intervall (Sekunden) -- wie oft nachts neu gerendert + gesendet wird",
           "night_start": "Nacht-Beginn (Uhrzeit)",
           "day_start": "Tag-Beginn (Uhrzeit) -- ab hier gilt wieder das Tages-Intervall",
-          "wake_lead_s": "Sende-Vorlauf (Sekunden) -- wie lange vor dem vorhergesagten Aufwachen des Geraets gesendet wird",
           "retain": "Retained senden (fuer Deep-Sleep/PIR/Taster-Firmware noetig)"
         }
       }
@@ -37,7 +36,6 @@
           "night_interval": "Nacht-Intervall (Sekunden) -- wie oft nachts neu gerendert + gesendet wird",
           "night_start": "Nacht-Beginn (Uhrzeit)",
           "day_start": "Tag-Beginn (Uhrzeit) -- ab hier gilt wieder das Tages-Intervall",
-          "wake_lead_s": "Sende-Vorlauf (Sekunden) -- wie lange vor dem vorhergesagten Aufwachen des Geraets gesendet wird",
           "retain": "Retained senden"
         }
       }

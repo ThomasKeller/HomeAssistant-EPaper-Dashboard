@@ -21,13 +21,11 @@ from .const import (
     CONF_RETAIN,
     CONF_TEMPLATE_JSON,
     CONF_TOPIC_PREFIX,
-    CONF_WAKE_LEAD,
     DEFAULT_DAY_INTERVAL,
     DEFAULT_DAY_START,
     DEFAULT_NIGHT_INTERVAL,
     DEFAULT_NIGHT_START,
     DEFAULT_RETAIN,
-    DEFAULT_WAKE_LEAD_S,
     DOMAIN,
 )
 
@@ -78,9 +76,6 @@ def _schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
             vol.Required(
                 CONF_DAY_START, default=defaults.get(CONF_DAY_START, DEFAULT_DAY_START)
             ): selector.TimeSelector(),
-            vol.Required(
-                CONF_WAKE_LEAD, default=defaults.get(CONF_WAKE_LEAD, DEFAULT_WAKE_LEAD_S)
-            ): vol.All(vol.Coerce(int), vol.Range(min=1, max=600)),
             vol.Required(CONF_RETAIN, default=defaults.get(CONF_RETAIN, DEFAULT_RETAIN)): bool,
         }
     )

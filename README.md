@@ -58,32 +58,24 @@ Nach Layout-Aenderungen im Editor: Integration -> **Konfigurieren** ->
 neues "Template-JSON kopieren"-Ergebnis einfuegen -> Absenden. Der naechste
 Sendezyklus startet sofort mit dem neuen Layout, kein Neustart noetig.
 
-## Tag/Nacht-Intervall + zeitoptimiertes Senden
+## Tag/Nacht-Intervall
 
-Statt eines starren Sende-Timers verfolgt die Integration zwei Ziele
-gleichzeitig:
+Zwischen Nacht-Beginn und Tag-Beginn gilt das Nacht-Intervall, sonst das
+Tages-Intervall -- sowohl fuers eigene Rendern+Senden als auch
+(automatisch, per `config`-Topic-Push bei jedem Zyklus) fuers
+Schlafintervall des Geraets selbst. Ohne diese Kopplung wuerde das Geraet
+nachts weiterhin im Tages-Takt aufwachen und nur oefter denselben Inhalt
+abholen, ohne echten Akku-Vorteil.
 
-1. **Tag/Nacht-Intervall**: zwischen Nacht-Beginn und Tag-Beginn gilt das
-   Nacht-Intervall, sonst das Tages-Intervall -- sowohl fuers eigene
-   Rendern+Senden als auch (automatisch, per `config`-Topic-Push bei jedem
-   Zyklus) fuers Schlafintervall des Geraets selbst. Ohne diese Kopplung
-   wuerde das Geraet nachts weiterhin im Tages-Takt aufwachen und nur
-   oefter denselben Inhalt abholen, ohne echten Akku-Vorteil.
-2. **Zeitoptimiertes Senden**: die Integration abonniert den `status`-Topic
-   des Geraets (`{Topic-Praefix}/status`) und merkt sich den Zeitpunkt der
-   letzten Nachricht -- das ist, wann das Geraet zuletzt aufgewacht ist.
-   Der naechste Sendezeitpunkt wird auf **Sende-Vorlauf** (konfigurierbar,
-   Default 30s -- siehe `wake_lead_s` in den Einstellungen) VOR dem daraus
-   vorhergesagten naechsten Aufwachen gelegt (letzter Status-Zeitpunkt +
-   aktuelles Intervall), statt auf einen von der HA-Startzeit abhaengigen,
-   moeglicherweise schlecht getakteten festen Timer. Beispiel: Intervall 10
-   Minuten, Vorlauf 60s, letzter Status 12:10 -> Senden 12:19, sodass eine
-   frische retained Nachricht bereitliegt, wenn das Geraet um ca. 12:20
-   erneut aufwacht. Realistischer Wert nach Messungen am echten Geraet
-   (WLAN-Fast-Reconnect + MQTT-Connect lag durchgehend bei 2-10s): 30s
-   Default, mit Marge fuer gelegentlich langsamere Zyklen und RTC-Drift.
-   Bevor der erste Status gesehen wurde (z.B. direkt nach einem
-   HA-Neustart), greift der normale Intervall-Takt ab jetzt als Fallback.
+Bewusst ein **fester** Intervall-Takt (kein Bezug zum tatsaechlichen
+Aufwachzeitpunkt des Geraets, siehe Architektur-Historie in
+`__init__.py`): eine fruehere Version versuchte, den Sendezeitpunkt anhand
+des Status-Topics auf kurz vor das vorhergesagte naechste Aufwachen zu
+legen. Das fuehrte dazu, dass ein spontaner Sofort-Refresh am Geraet (z.B.
+Taster-Wake) einen bis zu ein Intervall alten Inhalt abholte, weil die
+retained State-Nachricht nur einmal pro regulaerem Zyklus aktualisiert
+wurde. Mit festem Takt ist der Inhalt hoechstens ein Intervall alt, auch
+bei spontanen Wakes.
 
 Die "Schlafintervall"-Number-Entity (s.u.) bleibt als manueller Override
 nutzbar, wird aber vom naechsten automatischen Zyklus wieder auf den
@@ -108,11 +100,9 @@ Die Integration nutzt **ausschliesslich** Home Assistants eigene
 MQTT-Integration (`ha_mqtt.py`, `manifest.json` hat
 `"dependencies": ["mqtt"]`) -- ein fruehrer eigenstaendiger
 `paho-mqtt`-Client fuer einen frei waehlbaren Broker (`mqtt_client.py`)
-wurde entfernt: das zeitoptimierte Senden (s.o.) braucht ein dauerhaftes
-Abonnement des `status`-Topics, das der damalige kurzlebige
-Publish-Only-Client nicht bieten konnte. Ist HAs MQTT-Integration nicht
-eingerichtet, verweigert Home Assistant dank der harten Abhaengigkeit das
-Laden mit einer klaren Fehlermeldung, statt erst zur Laufzeit zu scheitern.
+wurde entfernt. Ist HAs MQTT-Integration nicht eingerichtet, verweigert
+Home Assistant dank der harten Abhaengigkeit das Laden mit einer klaren
+Fehlermeldung, statt erst zur Laufzeit zu scheitern.
 
 `render.py` ist ein **manueller Python-Port** von
 `PayloadBuilder.cs`/`GfxTextLayout.cs`/`GfxFonts.cs`/`WeatherConditions.cs`
