@@ -13,32 +13,25 @@ from homeassistant.core import callback
 from homeassistant.helpers import selector
 
 from .const import (
+    CONF_DAY_INTERVAL,
+    CONF_DAY_START,
     CONF_DEVICE_NAME,
-    CONF_MQTT_HOST,
-    CONF_MQTT_PASSWORD,
-    CONF_MQTT_PORT,
-    CONF_MQTT_SOURCE,
-    CONF_MQTT_USERNAME,
+    CONF_NIGHT_INTERVAL,
+    CONF_NIGHT_START,
     CONF_RETAIN,
     CONF_TEMPLATE_JSON,
     CONF_TOPIC_PREFIX,
-    CONF_UPDATE_INTERVAL,
-    DEFAULT_MQTT_PORT,
-    DEFAULT_MQTT_SOURCE,
+    CONF_WAKE_LEAD,
+    DEFAULT_DAY_INTERVAL,
+    DEFAULT_DAY_START,
+    DEFAULT_NIGHT_INTERVAL,
+    DEFAULT_NIGHT_START,
     DEFAULT_RETAIN,
-    DEFAULT_UPDATE_INTERVAL,
-    MQTT_SOURCE_CUSTOM,
-    MQTT_SOURCE_HA,
+    DEFAULT_WAKE_LEAD_S,
     DOMAIN,
 )
 
 ERROR_INVALID_JSON = "invalid_json"
-ERROR_MISSING_MQTT_HOST = "missing_mqtt_host"
-
-_MQTT_SOURCE_OPTIONS = [
-    selector.SelectOptionDict(value=MQTT_SOURCE_CUSTOM, label="Eigener Broker (Adresse unten eintragen)"),
-    selector.SelectOptionDict(value=MQTT_SOURCE_HA, label="Home Assistants eigene MQTT-Integration verwenden"),
-]
 
 
 def _validate_template_json(value: str) -> None:
@@ -51,18 +44,12 @@ def _validate_template_json(value: str) -> None:
 
 
 def _validate(user_input: dict[str, Any]) -> dict[str, str]:
-    """Liefert ein errors-Dict (leer = alles ok). mqtt_host ist nur bei
-    Source "custom" Pflicht -- bei "ha" wird Home Assistants eigene
-    MQTT-Verbindung genutzt, da braucht es keine eigene Broker-Adresse."""
+    """Liefert ein errors-Dict (leer = alles ok)."""
     errors: dict[str, str] = {}
     try:
         _validate_template_json(user_input[CONF_TEMPLATE_JSON])
     except vol.Invalid:
         errors["base"] = ERROR_INVALID_JSON
-
-    if user_input.get(CONF_MQTT_SOURCE) == MQTT_SOURCE_CUSTOM and not user_input.get(CONF_MQTT_HOST):
-        errors[CONF_MQTT_HOST] = ERROR_MISSING_MQTT_HOST
-
     return errors
 
 
@@ -75,29 +62,25 @@ def _schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
                 CONF_TOPIC_PREFIX, default=defaults.get(CONF_TOPIC_PREFIX, "epaper/42")
             ): str,
             vol.Required(
-                CONF_MQTT_SOURCE, default=defaults.get(CONF_MQTT_SOURCE, DEFAULT_MQTT_SOURCE)
-            ): selector.SelectSelector(
-                selector.SelectSelectorConfig(options=_MQTT_SOURCE_OPTIONS, mode=selector.SelectSelectorMode.DROPDOWN)
-            ),
-            vol.Optional(
-                CONF_MQTT_HOST, default=defaults.get(CONF_MQTT_HOST, "")
-            ): str,
-            vol.Required(
-                CONF_MQTT_PORT, default=defaults.get(CONF_MQTT_PORT, DEFAULT_MQTT_PORT)
-            ): vol.All(vol.Coerce(int), vol.Range(min=1, max=65535)),
-            vol.Optional(
-                CONF_MQTT_USERNAME, default=defaults.get(CONF_MQTT_USERNAME, "")
-            ): str,
-            vol.Optional(
-                CONF_MQTT_PASSWORD, default=defaults.get(CONF_MQTT_PASSWORD, "")
-            ): selector.TextSelector(selector.TextSelectorConfig(type=selector.TextSelectorType.PASSWORD)),
-            vol.Required(
                 CONF_TEMPLATE_JSON, default=defaults.get(CONF_TEMPLATE_JSON, "")
             ): selector.TextSelector(selector.TextSelectorConfig(multiline=True)),
             vol.Required(
-                CONF_UPDATE_INTERVAL,
-                default=defaults.get(CONF_UPDATE_INTERVAL, DEFAULT_UPDATE_INTERVAL),
+                CONF_DAY_INTERVAL,
+                default=defaults.get(CONF_DAY_INTERVAL, DEFAULT_DAY_INTERVAL),
             ): vol.All(vol.Coerce(int), vol.Range(min=10)),
+            vol.Required(
+                CONF_NIGHT_INTERVAL,
+                default=defaults.get(CONF_NIGHT_INTERVAL, DEFAULT_NIGHT_INTERVAL),
+            ): vol.All(vol.Coerce(int), vol.Range(min=10)),
+            vol.Required(
+                CONF_NIGHT_START, default=defaults.get(CONF_NIGHT_START, DEFAULT_NIGHT_START)
+            ): selector.TimeSelector(),
+            vol.Required(
+                CONF_DAY_START, default=defaults.get(CONF_DAY_START, DEFAULT_DAY_START)
+            ): selector.TimeSelector(),
+            vol.Required(
+                CONF_WAKE_LEAD, default=defaults.get(CONF_WAKE_LEAD, DEFAULT_WAKE_LEAD_S)
+            ): vol.All(vol.Coerce(int), vol.Range(min=1, max=600)),
             vol.Required(CONF_RETAIN, default=defaults.get(CONF_RETAIN, DEFAULT_RETAIN)): bool,
         }
     )
@@ -131,7 +114,7 @@ class EpaperDashboardConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
 class EpaperDashboardOptionsFlow(config_entries.OptionsFlow):
     """Ueber "Konfigurieren" erreichbar -- hier das Template nach
-    Layout-Aenderungen im Editor neu einfuegen, oder Intervall/Retain
+    Layout-Aenderungen im Editor neu einfuegen, oder Intervalle/Retain
     anpassen."""
 
     def __init__(self, config_entry: config_entries.ConfigEntry) -> None:

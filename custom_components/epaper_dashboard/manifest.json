@@ -1,10 +1,9 @@
 {
   "domain": "epaper_dashboard",
   "name": "e-Paper Dashboard",
-  "version": "1.0.2",
+  "version": "1.1.0",
   "config_flow": true,
   "iot_class": "local_push",
   "codeowners": [],
-  "after_dependencies": ["mqtt"],
-  "requirements": ["paho-mqtt>=1.6.0,<3.0.0"]
+  "dependencies": ["mqtt"]
 }

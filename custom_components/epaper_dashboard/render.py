@@ -53,6 +53,47 @@ def _gfx_font(key: str | None) -> tuple[int, int]:
     return GFX_FONTS.get(key or "default", GFX_FONTS["default"])
 
 
+# GfxFonts.cs CharWidths -- exakte xAdvance-Werte je Zeichen 0x20-0x7E
+# (Index 0 = 0x20), direkt aus den GFXglyph-Tabellen der Adafruit-GFX-Font-
+# Header extrahiert. Grund: AvgCharWidthPx ist ein Mittelwert ueber ALLE
+# druckbaren Zeichen, aber schmale Satzzeichen wie "." sind bei
+# proportionalen Schriften deutlich schmaler als der Durchschnitt (z.B.
+# sans12: Ziffer=13px, Punkt=6px). Bei Werten wie "20.1" summiert eine reine
+# Laengen*Mittelwert-Schaetzung den Punkt faelschlich mit ~12px statt 6px
+# auf und schiebt den Grad-Kreis dadurch sichtbar zu weit von der Zahl weg.
+# pico/tomthumb/builtin bewusst nicht enthalten (siehe GfxFonts.cs).
+CHAR_WIDTHS: dict[str, list[int]] = {
+    "sans9": [5, 6, 6, 10, 10, 16, 12, 4, 6, 6, 7, 11, 5, 6, 5, 5, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 5, 5, 11, 11, 11, 10, 18, 12, 12, 13, 13, 11, 11, 14, 13, 5, 10, 12, 10, 15, 13, 14, 12, 14, 13, 12, 11, 13, 12, 17, 12, 12, 11, 5, 5, 5, 8, 10, 5, 10, 10, 9, 10, 10, 5, 10, 10, 4, 4, 9, 4, 15, 10, 10, 10, 10, 6, 9, 5, 10, 9, 13, 9, 9, 9, 6, 4, 6, 9],
+    "sans12": [6, 8, 8, 13, 13, 21, 16, 5, 8, 8, 9, 14, 7, 8, 6, 7, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 6, 6, 14, 14, 14, 13, 24, 16, 16, 17, 17, 15, 14, 18, 17, 7, 13, 16, 14, 20, 18, 19, 16, 19, 17, 16, 15, 17, 15, 22, 16, 16, 15, 7, 7, 7, 11, 13, 6, 13, 13, 12, 13, 13, 7, 13, 13, 5, 6, 12, 5, 19, 13, 13, 13, 13, 8, 12, 7, 13, 12, 17, 11, 11, 12, 8, 6, 8, 12],
+    "sans18": [9, 12, 12, 19, 19, 31, 23, 7, 12, 12, 14, 20, 10, 12, 9, 10, 19, 19, 19, 19, 19, 19, 19, 19, 19, 19, 9, 9, 20, 20, 20, 19, 36, 23, 23, 25, 24, 22, 21, 27, 25, 10, 18, 24, 20, 30, 26, 27, 23, 27, 25, 23, 22, 25, 23, 33, 23, 24, 22, 10, 10, 10, 16, 19, 9, 19, 20, 18, 20, 19, 10, 19, 19, 8, 9, 18, 7, 28, 19, 19, 20, 20, 12, 17, 10, 19, 17, 25, 17, 17, 17, 12, 9, 12, 18],
+    "sans24": [12, 16, 16, 26, 26, 42, 31, 9, 16, 16, 18, 27, 13, 16, 12, 13, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 12, 12, 27, 27, 27, 26, 48, 31, 31, 33, 33, 30, 28, 36, 34, 13, 25, 32, 26, 40, 34, 37, 31, 37, 33, 31, 30, 34, 30, 44, 31, 32, 29, 13, 13, 13, 22, 26, 12, 26, 26, 24, 26, 25, 13, 26, 25, 10, 11, 24, 10, 38, 25, 25, 26, 26, 16, 23, 13, 25, 23, 34, 22, 22, 23, 16, 12, 16, 24],
+    "sans12b": [7, 8, 11, 13, 13, 21, 17, 6, 8, 8, 9, 14, 6, 8, 6, 7, 13, 14, 13, 13, 13, 13, 13, 13, 13, 13, 6, 6, 14, 14, 14, 15, 23, 17, 17, 17, 17, 16, 15, 18, 18, 7, 14, 17, 15, 21, 18, 19, 16, 19, 17, 16, 15, 18, 16, 23, 16, 15, 15, 8, 7, 8, 14, 13, 6, 14, 15, 13, 15, 14, 8, 15, 14, 7, 7, 14, 6, 21, 15, 15, 15, 15, 9, 13, 8, 15, 13, 19, 13, 13, 12, 9, 7, 9, 12],
+    "sans18b": [10, 12, 17, 19, 19, 31, 25, 9, 12, 12, 14, 20, 9, 12, 9, 10, 19, 19, 19, 19, 19, 19, 19, 19, 19, 19, 9, 9, 20, 20, 20, 21, 34, 24, 25, 25, 25, 23, 22, 27, 26, 11, 20, 25, 22, 30, 26, 27, 24, 27, 25, 24, 23, 26, 23, 34, 24, 22, 21, 12, 10, 12, 20, 19, 9, 20, 22, 20, 22, 20, 12, 21, 21, 10, 10, 20, 9, 31, 21, 21, 22, 22, 14, 19, 12, 21, 19, 27, 19, 19, 18, 14, 10, 14, 18],
+    "sans24b": [13, 16, 22, 26, 26, 42, 34, 12, 16, 16, 18, 27, 12, 16, 12, 13, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 12, 12, 27, 27, 27, 29, 46, 33, 33, 34, 34, 31, 30, 36, 35, 15, 27, 34, 29, 41, 35, 37, 32, 37, 34, 32, 30, 35, 31, 45, 32, 30, 29, 16, 13, 16, 27, 26, 12, 27, 29, 26, 29, 27, 16, 29, 28, 13, 13, 27, 13, 42, 29, 29, 29, 29, 18, 26, 16, 29, 25, 37, 26, 26, 24, 18, 13, 18, 23],
+    "mono9": [11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11],
+    "mono12": [14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14],
+    "mono12b": [14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 15, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14],
+    "serif12": [6, 8, 10, 12, 12, 20, 19, 5, 8, 8, 12, 14, 6, 8, 6, 7, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 6, 6, 14, 14, 14, 11, 21, 17, 15, 16, 17, 15, 14, 17, 17, 8, 9, 17, 15, 21, 17, 17, 14, 17, 16, 13, 15, 17, 17, 23, 17, 17, 15, 8, 7, 8, 11, 12, 6, 10, 12, 11, 12, 11, 9, 11, 12, 7, 8, 12, 6, 19, 12, 12, 12, 12, 8, 9, 7, 12, 11, 16, 12, 11, 10, 12, 5, 12, 12],
+    "serif18b": [9, 12, 19, 17, 17, 35, 29, 10, 12, 12, 18, 24, 9, 12, 9, 10, 18, 18, 17, 18, 18, 18, 18, 17, 17, 18, 12, 12, 24, 24, 24, 18, 33, 25, 23, 25, 26, 23, 22, 27, 27, 14, 18, 27, 23, 33, 25, 27, 22, 27, 25, 20, 23, 25, 25, 34, 25, 25, 23, 12, 10, 12, 20, 17, 12, 18, 19, 15, 19, 16, 14, 17, 19, 10, 14, 19, 10, 29, 19, 18, 19, 19, 15, 14, 12, 20, 17, 25, 18, 17, 16, 14, 8, 14, 18],
+}
+
+
+def _text_width_px(text: str, font_key: str | None, size: int) -> int:
+    """GfxFonts.cs TextWidthPx -- exakte Breite via CHAR_WIDTHS, sonst
+    AvgCharWidthPx-Mittelwert je unbekanntem Zeichen."""
+    size = max(1, size)
+    widths = CHAR_WIDTHS.get(font_key or "default")
+    _, avg_char_w = _gfx_font(font_key)
+    if widths is None:
+        return len(text) * avg_char_w * size
+
+    total = 0
+    for ch in text:
+        idx = ord(ch) - 0x20
+        total += widths[idx] if 0 <= idx < len(widths) else avg_char_w
+    return total * size
+
+
 # WeatherConditions.cs
 WEATHER_CONDITIONS_DE: dict[str, str] = {
     "clear-night": "Klar",
@@ -77,27 +118,37 @@ WEATHER_CONDITIONS_DE: dict[str, str] = {
 # GfxTextLayout.cs -- "°" ist in keiner GFX-Schriftart enthalten und wuerde
 # als UTF-8-Doppelbyte ohnehin byteweise falsch gezeichnet -- wird durch
 # einen kleinen gezeichneten Kreis ersetzt, Text drumherum in mehrere
-# "text"-Ops aufgeteilt. Position ueber die durchschnittliche Zeichenbreite
-# der Schriftart geschaetzt (keine exakten Glyphenbreiten -- bei gebundenen
-# Werten aendert sich die Zeichenzahl ohnehin bei jedem Refresh).
+# "text"-Ops aufgeteilt. Position ueber _text_width_px berechnet, das die
+# tatsaechliche, aus den Adafruit-GFX-Font-Headern gemessene Breite jedes
+# einzelnen Zeichens aufsummiert (siehe CHAR_WIDTHS) - nicht nur einen
+# Durchschnittswert mal Zeichenanzahl. Wichtig, weil z.B. "." deutlich
+# schmaler ist als der Durchschnitt und eine reine Mittelwert-Schaetzung den
+# Kreis bei Werten wie "20.1°" sichtbar zu weit von der Zahl weg schieben
+# wuerde.
 # ---------------------------------------------------------------------------
 def split_gfx_text(text: str, font_key: str | None, size: int, x: int, y: int) -> list[tuple]:
-    preview_px, avg_char_w = _gfx_font(font_key)
+    preview_px, _ = _gfx_font(font_key)
     if "°" not in text:
         return [("text", x, text)]
 
     parts = text.split("°")
     cursor_x = x
     size = max(1, size)
-    char_width = max(1, avg_char_w * size)
     radius = max(1, (preview_px * size) // 6)
+    # Kleiner optischer Zwischenraum vor dem Kreis: eine rein exakte
+    # Aneinanderreihung (Zeichenende = Kreis-Anfang) wirkt am echten Geraet
+    # zu gedraengt, da ein echtes "°"-Glyph auch einen eigenen Randabstand
+    # haette. Skaliert mit der Schriftgroesse (= Radius), am Geraet
+    # gegengeprueft (07.09.2026).
+    gap = radius
 
     segments: list[tuple] = []
     for i, part in enumerate(parts):
         if part:
             segments.append(("text", cursor_x, part))
-            cursor_x += len(part) * char_width
+            cursor_x += _text_width_px(part, font_key, size)
         if i < len(parts) - 1:
+            cursor_x += gap
             segments.append(("circle", cursor_x + radius, y + radius, radius))
             cursor_x += radius * 2 + 1
     return segments
@@ -292,11 +343,21 @@ async def resolve_template(hass: HomeAssistant, template: dict) -> dict:
 # ---------------------------------------------------------------------------
 # PayloadBuilder.cs BuildTextOps / BuildOp / Build
 # ---------------------------------------------------------------------------
+# Nur Felder schreiben, die vom Firmware-Default abweichen oder in der
+# aktuellen Konstellation ueberhaupt gelesen werden (z.B. outline_width bei
+# fill=True - siehe cmdRectangle/cmdCircle in epaper_core.h, das liest
+# outline_width nur im nicht gefuellten Zweig). Defaults siehe epaper_core.h
+# (ESP, "gfx") bzw. epaper_mqtt.py (Pi, "pil"). 1:1-Aequivalent zu
+# PayloadBuilder.cs BuildTextOps/BuildOp/BuildRectangleOp/... .
 def _build_text_ops(el: dict, text_engine: str) -> list[dict]:
     text = el.get("Text") or ""
 
     if text_engine != "gfx":
-        return [{"action": "text", "x": el["X"], "y": el["Y"], "text": text, "size": el.get("Size", 24)}]
+        op: dict = {"action": "text", "x": el["X"], "y": el["Y"], "text": text}
+        size = el.get("Size", 24)
+        if size != 24:  # Pi-Default: epaper_mqtt.py size|24
+            op["size"] = size
+        return [op]
 
     font_key = el.get("Font") or "default"
     size = max(1, int(el.get("Size", 1) or 1))
@@ -305,37 +366,48 @@ def _build_text_ops(el: dict, text_engine: str) -> list[dict]:
     for seg in split_gfx_text(text, font_key, size, el["X"], el["Y"]):
         if seg[0] == "text":
             _, run_x, run_text = seg
-            ops.append({
-                "action": "text", "x": run_x, "y": el["Y"], "text": run_text,
-                "size": size, "font": font_key,
-            })
+            op = {"action": "text", "x": run_x, "y": el["Y"], "text": run_text}
+            if size != 1:  # ESP-Default: epaper_core.h size|1
+                op["size"] = size
+            if font_key and font_key != "default":
+                op["font"] = font_key
+            ops.append(op)
         else:
             _, cx, cy, radius = seg
-            ops.append({
-                "action": "circle", "x": cx, "y": cy, "radius": radius,
-                "fill": False, "outline_width": 1,
-            })
+            # Immer fill=False/outline_width=1 (Default) -> beide entfallen.
+            ops.append({"action": "circle", "x": cx, "y": cy, "radius": radius})
     return ops
 
 
-def _build_op(el: dict) -> dict:
+def _build_op(el: dict, text_engine: str) -> dict:
     el_type = el["Type"]
     if el_type == "rectangle":
-        return {
+        op = {
             "action": "rectangle", "x": el["X"], "y": el["Y"],
             "width": el.get("Width", 0), "height": el.get("Height", 0),
-            "fill": bool(el.get("Fill", False)), "outline_width": el.get("OutlineWidth", 1),
         }
+        fill = bool(el.get("Fill", False))
+        outline_width = el.get("OutlineWidth", 1)
+        if fill:
+            op["fill"] = True
+        elif outline_width != 1:
+            op["outline_width"] = outline_width
+        return op
     if el_type == "line":
-        return {
-            "action": "line", "x1": el["X"], "y1": el["Y"],
-            "x2": el.get("X2", 0), "y2": el.get("Y2", 0), "width": el.get("OutlineWidth", 1),
-        }
+        op = {"action": "line", "x1": el["X"], "y1": el["Y"], "x2": el.get("X2", 0), "y2": el.get("Y2", 0)}
+        width = el.get("OutlineWidth", 1)
+        if width != 1:
+            op["width"] = width
+        return op
     if el_type == "circle":
-        return {
-            "action": "circle", "x": el["X"], "y": el["Y"], "radius": el.get("Radius", 20),
-            "fill": bool(el.get("Fill", False)), "outline_width": el.get("OutlineWidth", 1),
-        }
+        op = {"action": "circle", "x": el["X"], "y": el["Y"], "radius": el.get("Radius", 20)}
+        fill = bool(el.get("Fill", False))
+        outline_width = el.get("OutlineWidth", 1)
+        if fill:
+            op["fill"] = True
+        elif outline_width != 1:
+            op["outline_width"] = outline_width
+        return op
     if el_type == "progress":
         percent = max(0, min(100, round(float(el.get("Percent", 0) or 0))))
         return {
@@ -343,10 +415,20 @@ def _build_op(el: dict) -> dict:
             "width": el.get("Width", 0), "height": el.get("Height", 0), "percent": percent,
         }
     if el_type == "qrcode":
-        return {
-            "action": "qrcode", "x": el["X"], "y": el["Y"], "data": el.get("Data", ""),
-            "scale": el.get("Scale", 4), "border": el.get("Border", 2), "ec": el.get("Ec", "M"),
-        }
+        # Firmware-Default fuer "scale" unterscheidet sich je Plattform:
+        # ESP (epaper_core.h): 3, Pi (epaper_mqtt.py): 4.
+        scale_default = 3 if text_engine == "gfx" else 4
+        op = {"action": "qrcode", "x": el["X"], "y": el["Y"], "data": el.get("Data", "")}
+        scale = el.get("Scale", scale_default)
+        if scale != scale_default:
+            op["scale"] = scale
+        border = el.get("Border", 2)
+        if border != 2:
+            op["border"] = border
+        ec = el.get("Ec", "M")
+        if ec and ec != "M":
+            op["ec"] = ec
+        return op
     if el_type == "clear_area":
         return {
             "action": "clear_area", "x": el["X"], "y": el["Y"],
@@ -370,7 +452,7 @@ def build_payload(resolved_template: dict) -> str:
         if el["Type"] == "text":
             ops.extend(_build_text_ops(el, text_engine))
         else:
-            ops.append(_build_op(el))
+            ops.append(_build_op(el, text_engine))
 
     payload = {
         "action": "batch",
