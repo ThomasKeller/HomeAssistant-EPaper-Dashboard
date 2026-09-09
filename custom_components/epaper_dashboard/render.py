@@ -268,7 +268,12 @@ def _apply_forecast_binding(el: dict, binding: dict, forecasts: dict[str, list[d
         return
 
     raw = str(day[field])
-    if field == "condition":
+    # Nur fuer Text-Anzeige uebersetzen, nicht bei TargetField "data": das
+    # speist QR-Code (will die Rohdaten) und Wetter-Icon (muss den
+    # englischen Token in WEATHER_ICON_BITMAPS nachschlagen -- "Regen"
+    # faende dort nichts und wuerde still auf WEATHER_ICON_DEFAULT
+    # zurueckfallen). 1:1-Aequivalent zu PayloadBuilder.ApplyForecastBinding.
+    if field == "condition" and binding.get("TargetField") != "data":
         raw = WEATHER_CONDITIONS_DE.get(raw, raw)
 
     _assign_formatted(el, binding, raw)
