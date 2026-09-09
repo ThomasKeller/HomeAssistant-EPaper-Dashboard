@@ -99,7 +99,20 @@ Tag/Nacht-passenden Wert zurueckgesetzt -- kein dauerhaftes Ueberschreiben.
   exakt das Format, das `handleConfigMessage()` in `main_deepsleep.cpp` /
   `main_button.cpp` erwartet.
 - **Sensor "Letztes Update"**: Zeitstempel + Erfolg/Fehlermeldung des
-  letzten Sendeversuchs (Attribute `erfolgreich`/`meldung`).
+  letzten Sendeversuchs DIESER Integration (Attribute
+  `erfolgreich`/`meldung`). Sagt nichts darueber aus, ob das Geraet die
+  Nachricht je abgeholt hat.
+- **Sensor "Batterie"** (`device_class: battery`, %) / **"Batteriespannung"**
+  (`device_class: voltage`, V, standardmaessig deaktiviert): liest die vom
+  Geraet selbst retained veroeffentlichten Topics
+  `{Topic-Praefix}/battery_percent` / `{Topic-Praefix}/battery_voltage`
+  (siehe `MQTT_TOPIC_BATTERY_PERCENT`/`_VOLTAGE` in
+  `esp32_epaper/src/config.h`) -- echte Geraete-Werte als reine Zahl,
+  direkt in HA-Automationen nutzbar (z.B. "wenn Batterie < 20%"), ohne
+  Text-Parsing der bisherigen `status`-Zeile
+  (`"battery: 4.18V (100%)"`, bleibt zusaetzlich als Debug-Info bestehen).
+  Retained, daher sofort mit dem letzten bekannten Wert verfuegbar, auch
+  waehrend das Geraet schlaeft oder direkt nach einem HA-Neustart.
 
 ## Architektur / Wartungshinweis
 
