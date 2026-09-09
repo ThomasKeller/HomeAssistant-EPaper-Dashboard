@@ -145,6 +145,14 @@ aus der C#-App -- inklusive:
   C#-Version verifiziert (siehe Session-Historie), benoetigt aber
   **Pillow** (`manifest.json` `requirements`), da HA es nicht immer
   automatisch mitbringt.
+- **Wetter-Icon-Elemente** (`Data` haelt eine genormte HA-Wetter-
+  "condition" wie `partlycloudy`, siehe `weather_icons.py`): handgezeichnete
+  40x40-1-Bit-Icons (Sonne, Wolke, Regen, Gewitter, Schnee, Nebel, Hagel,
+  Wind, ...) statt eines Foto-Uploads -- kein Dithering/Threshold noetig,
+  nur Nearest-Neighbor-Resampling auf die im Editor gesetzte Breite/Hoehe.
+  `weather_icon_lookup()`/`resample_1bpp()` sind byteidentisch zur
+  C#-Version (`WeatherIcons.cs`) verifiziert. Ueblicherweise per Bindung
+  (Quelle "Wetter-Vorhersage", Feld "Zustand", Zielfeld "Daten") befuellt.
 - **Nachkommastellen** (`Binding.Decimals`, im Editor bei der jeweiligen
   Bindung einstellbar): rundet den HA-Rohwert (z.B. `1147.4765`) VOR dem
   Einsetzen in `Format` auf N Nachkommastellen (`0` = ganze Zahl, leer =

@@ -1,7 +1,7 @@
 {
   "domain": "epaper_dashboard",
   "name": "e-Paper Dashboard",
-  "version": "1.5.0",
+  "version": "1.6.0",
   "config_flow": true,
   "iot_class": "local_push",
   "codeowners": [],

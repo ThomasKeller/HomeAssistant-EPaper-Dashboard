@@ -24,6 +24,8 @@ from typing import Any
 from homeassistant.core import HomeAssistant
 from PIL import Image
 
+from .weather_icons import resample_1bpp, weather_icon_lookup
+
 _LOGGER = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
@@ -439,6 +441,48 @@ def _convert_to_1bpp(source_bytes: bytes, width: int, height: int, dither: bool,
     return bytes(out)
 
 
+# 1:1-Python-Aequivalent von ImageConverter.EncodeAsPng (C#) -- rendert eine
+# gepackte 1-Bit-Bitmap als echte PNG-Datei. Gebraucht fuer TextEngine "pil"
+# (Pi/epaper_mqtt.py), dessen image_from_base64() ueber PIL.Image.open()
+# eine echte Bilddatei mit Header braucht, kein rohes Bit-Rechteck wie beim
+# "gfx"-Pfad.
+def _render_png(packed: bytes, width: int, height: int) -> bytes:
+    bytes_per_row = (width + 7) // 8
+    img = Image.new("L", (width, height), 255)
+    px = img.load()
+    for y in range(height):
+        for x in range(width):
+            byte_index = y * bytes_per_row + x // 8
+            bit_pos = 7 - (x % 8)
+            if packed[byte_index] & (1 << bit_pos):
+                px[x, y] = 0
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    return buf.getvalue()
+
+
+def _build_weather_icon_op(el: dict, text_engine: str) -> dict:
+    """Handgezeichnete 1-Bit-Icons (weather_icons.py) statt eines Foto-
+    Uploads -- deshalb hier KEIN Floyd-Steinberg/Threshold noetig, die
+    Bitmap ist schon nativ 1-Bit, nur Resample auf Width x Height. Gleicher
+    Plattform-Unterschied wie bei _build_image_op: "gfx" bekommt das rohe
+    Bitmap-Rechteck, "pil" braucht eine echte PNG-Datei."""
+    native = weather_icon_lookup(el.get("Data", ""))
+    width = el.get("Width", 40)
+    height = el.get("Height", 40)
+    packed = resample_1bpp(native, width, height)
+
+    if text_engine == "gfx":
+        return {
+            "action": "image", "x": el["X"], "y": el["Y"],
+            "width": width, "height": height,
+            "base64": base64.b64encode(packed).decode("ascii"),
+        }
+
+    png = _render_png(packed, max(1, width), max(1, height))
+    return {"action": "image", "x": el["X"], "y": el["Y"], "base64": base64.b64encode(png).decode("ascii")}
+
+
 def _build_image_op(el: dict, text_engine: str) -> dict | None:
     """"gfx" (ESP/epaper_core.h): applyImage() braucht eine ROHE 1-Bit-Bitmap
     (MSB-first, byte-aligned je Zeile) plus width/height -- das Quellbild
@@ -532,6 +576,8 @@ def _build_op(el: dict, text_engine: str) -> dict | None:
         }
     if el_type == "image":
         return _build_image_op(el, text_engine)
+    if el_type == "weather_icon":
+        return _build_weather_icon_op(el, text_engine)
     raise ValueError(f"Unbekannter Elementtyp: {el_type}")
 
 
