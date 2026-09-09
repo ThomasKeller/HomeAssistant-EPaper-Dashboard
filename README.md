@@ -146,10 +146,13 @@ aus der C#-App -- inklusive:
   **Pillow** (`manifest.json` `requirements`), da HA es nicht immer
   automatisch mitbringt.
 - **Wetter-Icon-Elemente** (`Data` haelt eine genormte HA-Wetter-
-  "condition" wie `partlycloudy`, siehe `weather_icons.py`): handgezeichnete
-  40x40-1-Bit-Icons (Sonne, Wolke, Regen, Gewitter, Schnee, Nebel, Hagel,
-  Wind, ...) statt eines Foto-Uploads -- kein Dithering/Threshold noetig,
-  nur Nearest-Neighbor-Resampling auf die im Editor gesetzte Breite/Hoehe.
+  "condition" wie `partlycloudy`, siehe `weather_icons.py`): 64x64-1-Bit-
+  Icons (Sonne, Wolke, Regen, Gewitter, Schnee, Nebel, Hagel, Wind, ...),
+  rasterisiert aus Erik Flowers' Open-Source-Icon-Set
+  [weather-icons](https://github.com/erikflowers/weather-icons) (SIL OFL
+  1.1, siehe README des Hauptprojekts fuer den Lizenzhinweis), statt eines
+  Foto-Uploads -- kein Dithering/Threshold noetig, nur Nearest-Neighbor-
+  Resampling auf die im Editor gesetzte Breite/Hoehe.
   `weather_icon_lookup()`/`resample_1bpp()` sind byteidentisch zur
   C#-Version (`WeatherIcons.cs`) verifiziert. Ueblicherweise per Bindung
   (Quelle "Wetter-Vorhersage", Feld "Zustand", Zielfeld "Daten") befuellt.
