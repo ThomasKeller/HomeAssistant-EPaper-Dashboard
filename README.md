@@ -137,6 +137,14 @@ aus der C#-App -- inklusive:
   C#-App)
 - "Sende-Zeitpunkt"-Bindings (.NET-Datumsformat wie `HH:mm` wird nach
   `strftime` uebersetzt, siehe `dotnet_format_to_strftime()`)
+- **Bild-Elemente** (im C#-Editor hochgeladene Grafiken, `ImageBase64`):
+  bei `TextEngine`="gfx" werden sie identisch zur C#-App
+  (`ImageConverter.ConvertTo1Bpp`) per manuellem Nearest-Neighbor-
+  Sampling + Floyd-Steinberg-Dithering (bzw. Schwellwert) in eine rohe
+  1-Bit-Bitmap umgewandelt -- `_convert_to_1bpp()` ist byteidentisch zur
+  C#-Version verifiziert (siehe Session-Historie), benoetigt aber
+  **Pillow** (`manifest.json` `requirements`), da HA es nicht immer
+  automatisch mitbringt.
 - **Nachkommastellen** (`Binding.Decimals`, im Editor bei der jeweiligen
   Bindung einstellbar): rundet den HA-Rohwert (z.B. `1147.4765`) VOR dem
   Einsetzen in `Format` auf N Nachkommastellen (`0` = ganze Zahl, leer =

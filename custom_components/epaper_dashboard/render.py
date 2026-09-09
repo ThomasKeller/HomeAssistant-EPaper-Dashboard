@@ -13,6 +13,8 @@ nachziehen, sonst laufen die beiden Renderer auseinander.
 """
 from __future__ import annotations
 
+import base64
+import io
 import json
 import logging
 import re
@@ -20,6 +22,7 @@ from datetime import datetime
 from typing import Any
 
 from homeassistant.core import HomeAssistant
+from PIL import Image
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -379,7 +382,100 @@ def _build_text_ops(el: dict, text_engine: str) -> list[dict]:
     return ops
 
 
-def _build_op(el: dict, text_engine: str) -> dict:
+# 1:1-Python-Aequivalent von EpaperDashboard/Services/ImageConverter.cs --
+# wandelt ein beliebiges Quellbild (PNG/JPEG/...) in das rohe 1-Bit-Format
+# um, das der ESP-Dispatcher fuer den "image"-Op erwartet: MSB-first,
+# byte-aligned pro Zeile, Bit=1 -> schwarz (siehe applyImage()/cmdImage()
+# in epaper_core.h). Identischer Floyd-Steinberg-Algorithmus wie in der
+# C#-App -- bei Aenderungen dort IMMER auch hier nachziehen, damit beide
+# Renderer fuer Bild-Elemente byteidentische Ergebnisse liefern.
+def _convert_to_1bpp(source_bytes: bytes, width: int, height: int, dither: bool, threshold: int, invert: bool) -> bytes:
+    width = max(1, width)
+    height = max(1, height)
+    threshold = max(0, min(255, threshold))
+
+    img = Image.open(io.BytesIO(source_bytes)).convert("RGB")
+    src_w, src_h = img.size
+    pixels = img.load()
+
+    # Bewusst manuelles Nearest-Neighbor-Sampling statt img.resize(...): die
+    # eingebauten Resize-Filter von PIL und ImageSharp (C#, siehe
+    # ImageConverter.ConvertTo1Bpp) interpolieren nicht bit-identisch --
+    # reine Ganzzahl-Arithmetik ist die einzige Variante, die in beiden
+    # Sprachen garantiert dasselbe Ergebnis liefert.
+    gray = [[0.0] * width for _ in range(height)]
+    for y in range(height):
+        sy = min(src_h - 1, (y * src_h) // height)
+        for x in range(width):
+            sx = min(src_w - 1, (x * src_w) // width)
+            r, g, b = pixels[sx, sy]
+            lum = 0.299 * r + 0.587 * g + 0.114 * b
+            gray[y][x] = 255.0 - lum if invert else lum
+
+    bytes_per_row = (width + 7) // 8
+    out = bytearray(bytes_per_row * height)
+
+    for y in range(height):
+        for x in range(width):
+            old = gray[y][x]
+            new_val = 0 if old < threshold else 255
+
+            if dither:
+                err = old - new_val
+                if x + 1 < width:
+                    gray[y][x + 1] += err * 7 / 16
+                if y + 1 < height:
+                    if x - 1 >= 0:
+                        gray[y + 1][x - 1] += err * 3 / 16
+                    gray[y + 1][x] += err * 5 / 16
+                    if x + 1 < width:
+                        gray[y + 1][x + 1] += err * 1 / 16
+
+            if new_val == 0:
+                byte_index = y * bytes_per_row + x // 8
+                bit_pos = 7 - (x % 8)
+                out[byte_index] |= 1 << bit_pos
+
+    return bytes(out)
+
+
+def _build_image_op(el: dict, text_engine: str) -> dict | None:
+    """"gfx" (ESP/epaper_core.h): applyImage() braucht eine ROHE 1-Bit-Bitmap
+    (MSB-first, byte-aligned je Zeile) plus width/height -- das Quellbild
+    (beliebiges Format, ImageBase64) wird deshalb serverseitig via
+    _convert_to_1bpp auf Width x Height skaliert und umgewandelt.
+    "pil" (Pi/epaper_mqtt.py): PIL dekodiert beliebige Formate selbst --
+    entweder ein Dateipfad auf dem Geraet (Path, hat Vorrang) oder das
+    Quellbild unveraendert als base64 durchreichen, keine Konvertierung
+    noetig. Kein Bild gesetzt -> None, Element wird uebersprungen."""
+    path = el.get("Path", "")
+    image_b64 = el.get("ImageBase64", "")
+
+    if text_engine != "gfx":
+        if path:
+            return {"action": "image", "x": el["X"], "y": el["Y"], "path": path}
+        if image_b64:
+            return {"action": "image", "x": el["X"], "y": el["Y"], "base64": image_b64}
+        return None
+
+    if not image_b64:
+        return None
+
+    source = base64.b64decode(image_b64)
+    width = el.get("Width", 120)
+    height = el.get("Height", 40)
+    packed = _convert_to_1bpp(
+        source, width, height,
+        bool(el.get("Dither", True)), el.get("Threshold", 128), bool(el.get("Invert", False)),
+    )
+    return {
+        "action": "image", "x": el["X"], "y": el["Y"],
+        "width": width, "height": height,
+        "base64": base64.b64encode(packed).decode("ascii"),
+    }
+
+
+def _build_op(el: dict, text_engine: str) -> dict | None:
     el_type = el["Type"]
     if el_type == "rectangle":
         op = {
@@ -435,7 +531,7 @@ def _build_op(el: dict, text_engine: str) -> dict:
             "width": el.get("Width", 0), "height": el.get("Height", 0),
         }
     if el_type == "image":
-        return {"action": "image", "x": el["X"], "y": el["Y"], "path": el.get("Path", "")}
+        return _build_image_op(el, text_engine)
     raise ValueError(f"Unbekannter Elementtyp: {el_type}")
 
 
@@ -452,7 +548,9 @@ def build_payload(resolved_template: dict) -> str:
         if el["Type"] == "text":
             ops.extend(_build_text_ops(el, text_engine))
         else:
-            ops.append(_build_op(el, text_engine))
+            op = _build_op(el, text_engine)
+            if op is not None:
+                ops.append(op)
 
     payload = {
         "action": "batch",
