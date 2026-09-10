@@ -156,6 +156,12 @@ aus der C#-App -- inklusive:
   `weather_icon_lookup()`/`resample_1bpp()` sind byteidentisch zur
   C#-Version (`WeatherIcons.cs`) verifiziert. Ueblicherweise per Bindung
   (Quelle "Wetter-Vorhersage", Feld "Zustand", Zielfeld "Daten") befuellt.
+- **Wetter-Vorhersage-Bindung, Feld "Wochentag (kurz)"**: berechnet den
+  tatsaechlichen Wochentag (So, Mo, Di, ...) eines Vorhersage-Tages aus
+  dessen "datetime"-Feld -- praktisch fuer Mehrtage-Anzeigen, wo statische
+  Labels wie "Morgen"/"Uebermorgen" nur fuer 1-2 Tage sinnvoll waeren.
+  `_weekday_short_de()` (feste Tabelle, keine Locale-Abhaengigkeit) ist
+  byteidentisch zur C#-Version (`WeekdayNames.cs`) verifiziert.
 - **Nachkommastellen** (`Binding.Decimals`, im Editor bei der jeweiligen
   Bindung einstellbar): rundet den HA-Rohwert (z.B. `1147.4765`) VOR dem
   Einsetzen in `Format` auf N Nachkommastellen (`0` = ganze Zahl, leer =

@@ -118,6 +118,21 @@ WEATHER_CONDITIONS_DE: dict[str, str] = {
     "windy-variant": "Windig",
 }
 
+# WeekdayNames.cs -- Index = date.weekday() (Montag=0 .. Sonntag=6). Feste
+# Tabelle statt locale-abhaengiger strftime("%a"), damit das Ergebnis
+# unabhaengig von der HA-Systemsprache exakt der C#-Version entspricht.
+WEEKDAY_SHORT_DE = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"]
+
+
+def _weekday_short_de(iso_datetime: str) -> str:
+    """WeekdayNames.ToGermanShort (C#) -- Wochentag aus dem "datetime"-Feld
+    eines HA-Forecast-Tages (z.B. "2026-09-11T00:00:00+00:00")."""
+    try:
+        dt = datetime.fromisoformat(iso_datetime)
+    except ValueError:
+        return iso_datetime
+    return WEEKDAY_SHORT_DE[dt.weekday()]
+
 
 # ---------------------------------------------------------------------------
 # GfxTextLayout.cs -- "°" ist in keiner GFX-Schriftart enthalten und wuerde
@@ -264,10 +279,13 @@ def _apply_forecast_binding(el: dict, binding: dict, forecasts: dict[str, list[d
 
     field = binding.get("ForecastField") or "temperature"
     day = days[offset]
-    if field not in day or day[field] is None:
+    # "weekday" ist kein echtes HA-Forecast-Feld -- berechnet aus dem immer
+    # vorhandenen "datetime"-Feld des Tages (siehe _weekday_short_de).
+    json_field = "datetime" if field == "weekday" else field
+    if json_field not in day or day[json_field] is None:
         return
 
-    raw = str(day[field])
+    raw = str(day[json_field])
     # Nur fuer Text-Anzeige uebersetzen, nicht bei TargetField "data": das
     # speist QR-Code (will die Rohdaten) und Wetter-Icon (muss den
     # englischen Token in WEATHER_ICON_BITMAPS nachschlagen -- "Regen"
@@ -275,6 +293,8 @@ def _apply_forecast_binding(el: dict, binding: dict, forecasts: dict[str, list[d
     # zurueckfallen). 1:1-Aequivalent zu PayloadBuilder.ApplyForecastBinding.
     if field == "condition" and binding.get("TargetField") != "data":
         raw = WEATHER_CONDITIONS_DE.get(raw, raw)
+    elif field == "weekday":
+        raw = _weekday_short_de(raw)
 
     _assign_formatted(el, binding, raw)
 
