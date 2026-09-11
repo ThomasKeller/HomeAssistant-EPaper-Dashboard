@@ -170,6 +170,22 @@ aus der C#-App -- inklusive:
   bleiben und in Python eine andere, inkompatible Mini-Sprache verwenden.
   `_apply_decimals()` in `render.py` ist das gepruefte Aequivalent zu
   `ApplyDecimals()` in `PayloadBuilder.cs`.
+- **Bindungs-Quelle "Tageswert" (`Source: "daily"`)**: fuer kumulative
+  Zaehler-Sensoren ohne eigenen taeglichen Reset (z.B. Netzbezug/
+  -einspeisung, Gaszaehler) -- liefert die Differenz zum Stand um
+  Mitternacht statt des rohen Gesamtzaehlerstands, analog zu dem, was
+  Home Assistants eigenes Energie-Dashboard fuer "heute" anzeigt.
+  `_fetch_daily_deltas()`/`_apply_daily_binding()` fragen dafuer direkt
+  den Recorder (`homeassistant.components.recorder.history.
+  get_significant_states()`) ab -- deshalb braucht `manifest.json` seit
+  dieser Version zusaetzlich `"recorder"` in `dependencies`. Die C#-App
+  loest dieselbe Quelle stattdessen ueber `GET /api/history/period` der
+  REST-API (`HomeAssistantClient.GetDailyDeltaAsync`), da sie ausserhalb
+  von HA laeuft und keinen direkten Recorder-Zugriff hat -- beide Wege
+  liefern das gleiche Ergebnis (erster vs. letzter numerischer State seit
+  Mitternacht). Bei vielen "Tageswert"-Bindungen und einem sehr kurzen
+  `CONF_STATE_REFRESH_INTERVAL` entsprechend mehr Recorder-Abfragen pro
+  Takt einplanen (je Bindung eine `get_significant_states()`-Abfrage).
 
 **Wird die Render-Logik in der C#-App geaendert** (neue Font, neue
 Binding-Quelle, geaendertes Protokoll-Feld), **muss `render.py` manuell

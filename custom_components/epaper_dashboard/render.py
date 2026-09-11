@@ -21,6 +21,7 @@ import re
 from datetime import datetime
 from typing import Any
 
+from homeassistant.components.recorder import get_instance, history
 from homeassistant.core import HomeAssistant
 from PIL import Image
 
@@ -299,6 +300,17 @@ def _apply_forecast_binding(el: dict, binding: dict, forecasts: dict[str, list[d
     _assign_formatted(el, binding, raw)
 
 
+def _apply_daily_binding(el: dict, binding: dict, daily_deltas: dict[str, float]) -> None:
+    """1:1-Aequivalent zu PayloadBuilder.cs ApplyDailyBinding: Tageswert
+    (Delta seit Mitternacht) statt Rohzustand -- fuer kumulative
+    Zaehler-Sensoren ohne eigenen taeglichen Reset (Netzbezug/-einspeisung,
+    Gaszaehler)."""
+    entity_id = binding.get("EntityId")
+    if not entity_id or entity_id not in daily_deltas:
+        return
+    _assign_formatted(el, binding, str(daily_deltas[entity_id]))
+
+
 def _apply_now_binding(el: dict, binding: dict) -> None:
     now = datetime.now()
     dotnet_fmt = binding.get("Format") or "HH:mm"
@@ -336,6 +348,55 @@ async def _fetch_forecasts(hass: HomeAssistant, entity_ids: set[str]) -> dict[st
 
 
 # ---------------------------------------------------------------------------
+# HomeAssistantClient.GetDailyDeltaAsync -- hier direkt ueber den Recorder
+# statt per REST-History-Umweg (die Integration laeuft ja schon in HA
+# selbst): erster Stand seit Mitternacht (letzter State VOR Mitternacht,
+# von get_significant_states automatisch als erster Eintrag geliefert)
+# minus aktueller Stand. Negative Differenzen (Zaehler-Reset waehrend des
+# Tages) werden auf 0 geklemmt statt einen irrefuehrenden Wert zu zeigen.
+# ---------------------------------------------------------------------------
+async def _fetch_daily_deltas(hass: HomeAssistant, entity_ids: set[str]) -> dict[str, float]:
+    if not entity_ids:
+        return {}
+
+    now = datetime.now().astimezone()
+    start_of_day = now.replace(hour=0, minute=0, second=0, microsecond=0)
+
+    def _query() -> dict[str, float]:
+        result: dict[str, float] = {}
+        # Bewusst OHNE minimal_response=True: der Recorder liefert dabei fuer
+        # unveraenderte Folge-Zustaende ein einfaches dict ({"last_changed":
+        # ..., "state": ...}) statt eines State-Objekts -- ".state" wuerde
+        # dort mit AttributeError scheitern. Ohne das Flag sind alle
+        # Eintraege konsistent State-Objekte; "no_attributes" spart trotzdem
+        # das (hier ungenutzte) Attribute-Parsing.
+        states_by_entity = history.get_significant_states(
+            hass, start_of_day, now, list(entity_ids), no_attributes=True,
+        )
+        for entity_id, entries in states_by_entity.items():
+            first: float | None = None
+            last: float | None = None
+            for entry in entries:
+                raw = entry["state"] if isinstance(entry, dict) else entry.state
+                try:
+                    value = float(raw)
+                except (TypeError, ValueError):
+                    continue
+                if first is None:
+                    first = value
+                last = value
+            if first is not None and last is not None:
+                result[entity_id] = max(0.0, last - first)
+        return result
+
+    try:
+        return await get_instance(hass).async_add_executor_job(_query)
+    except Exception as err:  # noqa: BLE001 - Statistik-Fehler sollen den Rest nicht blockieren
+        _LOGGER.warning("Tageswert-Abruf fehlgeschlagen: %s", err)
+        return {}
+
+
+# ---------------------------------------------------------------------------
 # PayloadBuilder.cs ResolveBindings
 # ---------------------------------------------------------------------------
 async def resolve_template(hass: HomeAssistant, template: dict) -> dict:
@@ -351,6 +412,15 @@ async def resolve_template(hass: HomeAssistant, template: dict) -> dict:
     }
     forecasts = await _fetch_forecasts(hass, forecast_entity_ids) if forecast_entity_ids else {}
 
+    daily_entity_ids = {
+        el["Binding"]["EntityId"]
+        for el in elements
+        if el.get("Binding")
+        and el["Binding"].get("Source") == "daily"
+        and el["Binding"].get("EntityId")
+    }
+    daily_deltas = await _fetch_daily_deltas(hass, daily_entity_ids) if daily_entity_ids else {}
+
     resolved: list[dict] = []
     for el in elements:
         el_copy = dict(el)
@@ -361,6 +431,8 @@ async def resolve_template(hass: HomeAssistant, template: dict) -> dict:
                 _apply_now_binding(el_copy, binding)
             elif source == "forecast":
                 _apply_forecast_binding(el_copy, binding, forecasts)
+            elif source == "daily":
+                _apply_daily_binding(el_copy, binding, daily_deltas)
             else:
                 _apply_entity_binding(hass, el_copy, binding)
         resolved.append(el_copy)
