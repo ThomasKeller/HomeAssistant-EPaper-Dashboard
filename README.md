@@ -186,6 +186,14 @@ aus der C#-App -- inklusive:
   Mitternacht). Bei vielen "Tageswert"-Bindungen und einem sehr kurzen
   `CONF_STATE_REFRESH_INTERVAL` entsprechend mehr Recorder-Abfragen pro
   Takt einplanen (je Bindung eine `get_significant_states()`-Abfrage).
+- **Faktor** (`Binding.Multiplier`, im Editor bei der jeweiligen Bindung
+  einstellbar): multipliziert den Rohwert VOR dem Runden (`Decimals`) mit
+  einer festen Zahl -- gedacht, um z.B. aus einer "Tageswert"-Bindung
+  (kWh/m3) per Preis-pro-Einheit einen Euro-Betrag zu machen (Preise aus
+  den Energie-Dashboard-Einstellungen, `ha_manage_energy_prefs` ->
+  `number_energy_price`/`number_energy_price_export`). `leer` = Rohwert
+  unveraendert (Faktor 1). `_apply_multiplier()` in `render.py` ist das
+  gepruefte Aequivalent zu `ApplyMultiplier()` in `PayloadBuilder.cs`.
 
 **Wird die Render-Logik in der C#-App geaendert** (neue Font, neue
 Binding-Quelle, geaendertes Protokoll-Feld), **muss `render.py` manuell
