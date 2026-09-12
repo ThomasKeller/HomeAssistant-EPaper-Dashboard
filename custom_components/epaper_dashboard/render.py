@@ -237,7 +237,23 @@ def _apply_decimals(raw: str, decimals: int | None) -> str:
     return f"{round(value, n):.{n}f}"
 
 
+def _apply_multiplier(raw: str, multiplier: float | None) -> str:
+    """Multipliziert raw mit `multiplier`, falls gesetzt und der Rohwert als
+    Zahl parsbar ist (sonst unveraendert) -- z.B. um aus einer "daily"-
+    kWh/m3-Bindung per Preis-pro-Einheit einen Euro-Betrag zu machen. Laeuft
+    VOR _apply_decimals(). 1:1-Aequivalent zu PayloadBuilder.cs
+    ApplyMultiplier()."""
+    if multiplier is None:
+        return raw
+    try:
+        value = float(raw)
+    except (TypeError, ValueError):
+        return raw
+    return str(value * multiplier)
+
+
 def _assign_formatted(el: dict, binding: dict, raw: str) -> None:
+    raw = _apply_multiplier(raw, binding.get("Multiplier"))
     raw = _apply_decimals(raw, binding.get("Decimals"))
 
     fmt = binding.get("Format") or "{0}"
